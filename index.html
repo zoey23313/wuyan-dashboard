@@ -27,9 +27,10 @@
   .monthbar .title{font-size:18px;font-weight:600;min-width:150px;text-align:center}
   table{width:100%;border-collapse:separate;border-spacing:6px}
   th{color:var(--muted);font-size:12px;font-weight:500;padding:6px 0;text-align:center}
-  td{height:74px;text-align:center;vertical-align:top;padding:8px 4px;border-radius:12px;border:1px solid var(--line);background:#fbfbfe;font-size:14px;position:relative;cursor:default;transition:.15s}
+  td{height:74px;text-align:center;vertical-align:middle;padding:8px 4px;border-radius:12px;border:1px solid var(--line);background:#fbfbfe;font-size:14px;position:relative;cursor:default;transition:.15s}
   td.empty{background:transparent;border-color:transparent}
-  td .num{font-weight:600;color:var(--text)}
+  td .num{font-weight:600;color:var(--text);font-size:17px}
+  td.done .badge{position:absolute;bottom:3px;right:5px;font-size:11px;color:#15803d;font-weight:700;line-height:1}
   td.done{background:var(--green-bg);border-color:var(--green)}
   td.done .num{color:#15803d}
   td.done .tick{position:absolute;top:4px;right:6px;color:var(--green);font-size:12px;font-weight:700}
@@ -115,10 +116,14 @@ function render(){
       if(d===null){ html+='<td class="empty"></td>'; continue; }
       const key=fmt(y,m,d);
       const up=DATA.dates && DATA.dates[key];
+      const files = up ? (up.files || (up.file?[up.file]:[])) : [];
+      const cnt = files.length;
       const cls = up?"done":"";
       const tcls = (key===todayStr)?"today":"";
       const tick = up?'<span class="tick">✓</span>':"";
-      html+=`<td class="${cls} ${tcls}" data-key="${key}"><div class="num">${d}</div>${tick}</td>`;
+      const circ = ['','①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+      const badge = cnt>=2 ? `<span class="badge">${cnt>10?'10+':circ[cnt]||cnt}</span>` : "";
+      html+=`<td class="${cls} ${tcls}" data-key="${key}"><div class="num">${d}</div>${tick}${badge}</td>`;
       if(up && m===cur.getMonth() && y===cur.getFullYear()) mCount++;
     }
     html+="</tr>";
@@ -131,7 +136,10 @@ function render(){
     td.onclick=()=>{
       const k=td.dataset.key;
       const v=DATA.dates[k];
-      document.getElementById("info").innerHTML=`<b>${k}</b> · 已上传 · 文件：<b>${v.file||"—"}<b>`;
+      const files = v.files || (v.file?[v.file]:[]);
+      const cnt = files.length;
+      const list = cnt>1 ? files.map(f=>`• ${f}`).join('<br>') : (files[0]||'—');
+      document.getElementById("info").innerHTML=`<b>${k}</b> · 已上传 · ${cnt} 个文件<br>${list}`;
     };
   });
 }
