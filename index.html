@@ -41,6 +41,28 @@
   .err{color:#ef4444}
   .legend{display:flex;gap:14px;margin-top:14px;font-size:12px;color:var(--muted);justify-content:center}
   .dot{display:inline-block;width:11px;height:11px;border-radius:4px;margin-right:5px;vertical-align:middle}
+  /* 日期选择弹窗 */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:100}
+  .overlay.show{display:flex;align-items:center;justify-content:center;animation:fade .2s ease}
+  .picker{background:#fff;border-radius:16px;padding:18px 20px;width:340px;box-shadow:0 12px 40px rgba(0,0,0,.2);animation:fade .25s ease}
+  .picker .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .picker .quick{display:flex;gap:6px}
+  .picker .quick button{padding:5px 10px;font-size:12px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;color:var(--muted);transition:.15s}
+  .picker .quick button:hover{background:#f2f3f8;color:var(--text)}
+  .picker .nav{display:flex;align-items:center;gap:8px}
+  .picker .nav button{width:28px;height:28px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text)}
+  .picker .nav button:hover{background:#f2f3f8}
+  .picker .nav .ym{font-size:15px;font-weight:600;min-width:110px;text-align:center}
+  .picker table{width:100%;border-collapse:separate;border-spacing:4px}
+  .picker th{color:var(--muted);font-size:11px;font-weight:500;padding:4px 0}
+  .picker td{height:38px;text-align:center;vertical-align:middle;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid transparent}
+  .picker td.empty{cursor:default}
+  .picker td.has{background:var(--green-bg);color:#15803d;font-weight:600}
+  .picker td.has:hover{background:#bbf7d0}
+  .picker td.none:hover{background:#f2f3f8}
+  .picker td.sel{box-shadow:inset 0 0 0 2px var(--today)}
+  .picker .close{width:100%;margin-top:12px;padding:8px;border:none;background:var(--bg);border-radius:8px;font-size:13px;color:var(--muted);cursor:pointer;transition:.15s}
+  .picker .close:hover{background:#eef0f5}
 </style>
 </head>
 <body>
@@ -59,7 +81,7 @@
   <div class="card">
     <div class="monthbar">
       <button id="prev" aria-label="上一月">‹</button>
-      <div class="title" id="title">—</div>
+      <div class="title" id="title" onclick="openPicker()" style="cursor:pointer" title="点击选择日期">—</div>
       <button id="next" aria-label="下一月">›</button>
     </div>
     <table>
@@ -72,6 +94,28 @@
       <span><span class="dot" style="background:#fbfbfe;border:1px solid var(--line)"></span>未上传</span>
       <span><span class="dot" style="background:#fff;box-shadow:inset 0 0 0 2px var(--today)"></span>今天</span>
     </div>
+  </div>
+</div>
+
+<!-- 日期选择弹窗 -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closePicker()">
+  <div class="picker">
+    <div class="top">
+      <div class="quick">
+        <button onclick="jumpEdge('oldest')">最早</button>
+        <button onclick="jumpEdge('newest')">最新</button>
+      </div>
+      <div class="nav">
+        <button onclick="pickerPrev()">‹</button>
+        <span class="ym" id="pym">—</span>
+        <button onclick="pickerNext()">›</button>
+      </div>
+    </div>
+    <table>
+      <thead><tr><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th><th>日</th></tr></thead>
+      <tbody id="pgrid"></tbody>
+    </table>
+    <button class="close" onclick="closePicker()">关闭</button>
   </div>
 </div>
 
@@ -146,6 +190,60 @@ function render(){
 
 document.getElementById("prev").onclick=()=>{cur.setMonth(cur.getMonth()-1);render();};
 document.getElementById("next").onclick=()=>{cur.setMonth(cur.getMonth()+1);render();};
+
+// ===== 日期选择弹窗 =====
+let pcur = new Date(); pcur.setDate(1);
+function openPicker(){ pcur=new Date(cur); renderPicker(); document.getElementById('overlay').classList.add('show'); }
+function closePicker(){ document.getElementById('overlay').classList.remove('show'); }
+function pickerPrev(){ pcur.setMonth(pcur.getMonth()-1); renderPicker(); }
+function pickerNext(){ pcur.setMonth(pcur.getMonth()+1); renderPicker(); }
+function jumpEdge(edge){
+  const keys=Object.keys(DATA.dates).sort();
+  if(!keys.length) return;
+  const t=edge==='oldest'?keys[0]:keys[keys.length-1];
+  const [y,m]=t.split('-').map(Number);
+  pcur=new Date(y,m-1,1); renderPicker();
+}
+function renderPicker(){
+  const y=pcur.getFullYear(),m=pcur.getMonth();
+  document.getElementById('pym').textContent=`${y}年${m+1}月`;
+  const first=new Date(y,m,1);
+  let sd=(first.getDay()+6)%7;
+  const days=new Date(y,m+1,0).getDate();
+  let cells=[];
+  for(let i=0;i<sd;i++) cells.push(null);
+  for(let d=1;d<=days;d++) cells.push(d);
+  while(cells.length%7) cells.push(null);
+  let html="";
+  for(let w=0;w<cells.length;w+=7){
+    html+="<tr>";
+    for(let i=w;i<w+7;i++){
+      const d=cells[i];
+      if(d===null){html+='<td class="empty"></td>';continue;}
+      const key=fmt(y,m,d);
+      const has=DATA.dates&&DATA.dates[key];
+      const sel=(key===todayStr)?"sel":"";
+      const cls=has?"has":"none";
+      html+=`<td class="${cls} ${sel}" onclick="pickDate('${key}')">${d}</td>`;
+    }
+    html+="</tr>";
+  }
+  document.getElementById('pgrid').innerHTML=html;
+}
+function pickDate(key){
+  const [y,m]=key.split('-').map(Number);
+  cur=new Date(y,m-1,1);
+  closePicker();
+  render();
+  const v=DATA.dates[key];
+  if(v){
+    const files=v.files||(v.file?[v.file]:[]);
+    const cnt=files.length;
+    const list=cnt>1?files.map(f=>`• ${f}`).join('<br>'):(files[0]||'—');
+    document.getElementById("info").innerHTML=`<b>${key}</b> · 已上传 · ${cnt} 个文件<br>${list}`;
+  }
+}
+
 load();
 </script>
 </body>
