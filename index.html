@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>直播文稿上传看板</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --card:#ffffff; --line:#ececf2; --text:#2b2c38; --muted:#9095a3;
+    --green:#22c55e; --green-bg:#dcfce7; --blue:#3b82f6; --today:#3b82f6;
+    --shadow:0 4px 18px rgba(40,42,70,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:28px 20px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px;animation:fade .5s ease}
+  h1{font-size:22px;font-weight:700;letter-spacing:.3px}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .stats{display:flex;gap:10px}
+  .pill{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 14px;font-size:13px;box-shadow:var(--shadow)}
+  .pill b{color:var(--green);font-size:16px;margin-right:3px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:var(--shadow);animation:fade .55s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .monthbar{display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:18px}
+  .monthbar button{width:34px;height:34px;border:1px solid var(--line);background:#fff;border-radius:10px;cursor:pointer;font-size:16px;color:var(--text);transition:.15s}
+  .monthbar button:hover{background:#f2f3f8}
+  .monthbar .title{font-size:18px;font-weight:600;min-width:150px;text-align:center}
+  table{width:100%;border-collapse:separate;border-spacing:6px}
+  th{color:var(--muted);font-size:12px;font-weight:500;padding:6px 0;text-align:center}
+  td{height:74px;text-align:center;vertical-align:top;padding:8px 4px;border-radius:12px;border:1px solid var(--line);background:#fbfbfe;font-size:14px;position:relative;cursor:default;transition:.15s}
+  td.empty{background:transparent;border-color:transparent}
+  td .num{font-weight:600;color:var(--text)}
+  td.done{background:var(--green-bg);border-color:var(--green)}
+  td.done .num{color:#15803d}
+  td.done .tick{position:absolute;top:4px;right:6px;color:var(--green);font-size:12px;font-weight:700}
+  td.today{box-shadow:inset 0 0 0 2px var(--today)}
+  td.done:hover{transform:translateY(-2px);cursor:pointer}
+  .info{margin-top:16px;padding:14px 16px;background:#f2f3f8;border-radius:12px;font-size:13px;color:var(--muted);min-height:20px;animation:fade .3s ease}
+  .info b{color:var(--text)}
+  .err{color:#ef4444}
+  .legend{display:flex;gap:14px;margin-top:14px;font-size:12px;color:var(--muted);justify-content:center}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:4px;margin-right:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>直播文稿上传看板</h1>
+      <div class="sub" id="src">数据源：加载中…</div>
+    </div>
+    <div class="stats">
+      <div class="pill">本月 <b id="mCount">0</b>天</div>
+      <div class="pill">累计 <b id="tCount">0</b>天</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="monthbar">
+      <button id="prev" aria-label="上一月">‹</button>
+      <div class="title" id="title">—</div>
+      <button id="next" aria-label="下一月">›</button>
+    </div>
+    <table>
+      <thead><tr><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th><th>日</th></tr></thead>
+      <tbody id="grid"></tbody>
+    </table>
+    <div class="info" id="info">点击绿色日期可查看对应文件。</div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--green-bg);border:1px solid var(--green)"></span>已上传</span>
+      <span><span class="dot" style="background:#fbfbfe;border:1px solid var(--line)"></span>未上传</span>
+      <span><span class="dot" style="background:#fff;box-shadow:inset 0 0 0 2px var(--today)"></span>今天</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA_URL = "data.json";
+let DATA = {dates:{}};
+let cur = new Date(); cur.setDate(1);
+const pad = n => String(n).padStart(2,"0");
+const fmt = (y,m,d) => `${y}-${pad(m+1)}-${pad(d)}`;
+const todayStr = (()=>{const n=new Date();return fmt(n.getFullYear(),n.getMonth(),n.getDate());})();
+
+async function load(){
+  try{
+    const r = await fetch(DATA_URL,{cache:"no-store"});
+    if(!r.ok) throw 0;
+    DATA = await r.json();
+  }catch(e){
+    document.getElementById("src").innerHTML = '<span class="err">无法读取 data.json。若用本地双击打开，请改用 http server（在该目录执行 python -m http.server 8080 后访问 localhost:8080）。</span>';
+    return;
+  }
+  document.getElementById("src").textContent = "数据源：" + (DATA.source||"—") + " · 更新于 " + (DATA.lastUpdated||"—");
+  render();
+}
+
+function render(){
+  const y = cur.getFullYear(), m = cur.getMonth();
+  document.getElementById("title").textContent = `${y} 年 ${m+1} 月`;
+  const first = new Date(y,m,1);
+  let startDay = (first.getDay()+6)%7; // 周一为首
+  const days = new Date(y,m+1,0).getDate();
+  let cells = [];
+  for(let i=0;i<startDay;i++) cells.push(null);
+  for(let d=1;d<=days;d++) cells.push(d);
+  while(cells.length%7) cells.push(null);
+
+  let mCount=0;
+  let html="";
+  for(let w=0; w<cells.length; w+=7){
+    html+="<tr>";
+    for(let i=w;i<w+7;i++){
+      const d=cells[i];
+      if(d===null){ html+='<td class="empty"></td>'; continue; }
+      const key=fmt(y,m,d);
+      const up=DATA.dates && DATA.dates[key];
+      const cls = up?"done":"";
+      const tcls = (key===todayStr)?"today":"";
+      const tick = up?'<span class="tick">✓</span>':"";
+      html+=`<td class="${cls} ${tcls}" data-key="${key}"><div class="num">${d}</div>${tick}</td>`;
+      if(up && m===cur.getMonth() && y===cur.getFullYear()) mCount++;
+    }
+    html+="</tr>";
+  }
+  document.getElementById("grid").innerHTML=html;
+  document.getElementById("mCount").textContent=mCount;
+  document.getElementById("tCount").textContent=DATA.dates?Object.keys(DATA.dates).length:0;
+
+  document.querySelectorAll("td.done").forEach(td=>{
+    td.onclick=()=>{
+      const k=td.dataset.key;
+      const v=DATA.dates[k];
+      document.getElementById("info").innerHTML=`<b>${k}</b> · 已上传 · 文件：<b>${v.file||"—"}<b>`;
+    };
+  });
+}
+
+document.getElementById("prev").onclick=()=>{cur.setMonth(cur.getMonth()-1);render();};
+document.getElementById("next").onclick=()=>{cur.setMonth(cur.getMonth()+1);render();};
+load();
+</script>
+</body>
+</html>
