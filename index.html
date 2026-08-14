@@ -53,14 +53,12 @@
   .picker .nav button{width:28px;height:28px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-size:14px;color:var(--text)}
   .picker .nav button:hover{background:#f2f3f8}
   .picker .nav .ym{font-size:15px;font-weight:600;min-width:110px;text-align:center}
-  .picker table{width:100%;border-collapse:separate;border-spacing:4px}
-  .picker th{color:var(--muted);font-size:11px;font-weight:500;padding:4px 0}
-  .picker td{height:38px;text-align:center;vertical-align:middle;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid transparent}
-  .picker td.empty{cursor:default}
-  .picker td.has{background:var(--green-bg);color:#15803d;font-weight:600}
-  .picker td.has:hover{background:#bbf7d0}
-  .picker td.none:hover{background:#f2f3f8}
-  .picker td.sel{box-shadow:inset 0 0 0 2px var(--today)}
+  .picker .mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .picker .mcell{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 4px;border-radius:10px;cursor:pointer;border:1px solid transparent;transition:.15s}
+  .picker .mcell:hover{background:#f2f3f8}
+  .picker .mlbl{font-size:14px;font-weight:600;color:var(--text)}
+  .picker .mcnt{font-size:11px;font-weight:700;color:#15803d;margin-top:3px}
+  .picker .mcnt.zero{color:var(--line);font-weight:400}
   .picker .close{width:100%;margin-top:12px;padding:8px;border:none;background:var(--bg);border-radius:8px;font-size:13px;color:var(--muted);cursor:pointer;transition:.15s}
   .picker .close:hover{background:#eef0f5}
 </style>
@@ -111,10 +109,7 @@
         <button onclick="pickerNext()">›</button>
       </div>
     </div>
-    <table>
-      <thead><tr><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th><th>日</th></tr></thead>
-      <tbody id="pgrid"></tbody>
-    </table>
+    <div class="mgrid" id="pgrid"></div>
     <button class="close" onclick="closePicker()">关闭</button>
   </div>
 </div>
@@ -195,53 +190,32 @@ document.getElementById("next").onclick=()=>{cur.setMonth(cur.getMonth()+1);rend
 let pcur = new Date(); pcur.setDate(1);
 function openPicker(){ pcur=new Date(cur); renderPicker(); document.getElementById('overlay').classList.add('show'); }
 function closePicker(){ document.getElementById('overlay').classList.remove('show'); }
-function pickerPrev(){ pcur.setMonth(pcur.getMonth()-1); renderPicker(); }
-function pickerNext(){ pcur.setMonth(pcur.getMonth()+1); renderPicker(); }
+function pickerPrev(){ pcur.setFullYear(pcur.getFullYear()-1); renderPicker(); }
+function pickerNext(){ pcur.setFullYear(pcur.getFullYear()+1); renderPicker(); }
 function jumpEdge(edge){
   const keys=Object.keys(DATA.dates).sort();
   if(!keys.length) return;
   const t=edge==='oldest'?keys[0]:keys[keys.length-1];
-  const [y,m]=t.split('-').map(Number);
-  pcur=new Date(y,m-1,1); renderPicker();
+  const [y]=t.split('-').map(Number);
+  pcur=new Date(y,0,1); renderPicker();
 }
 function renderPicker(){
-  const y=pcur.getFullYear(),m=pcur.getMonth();
-  document.getElementById('pym').textContent=`${y}年${m+1}月`;
-  const first=new Date(y,m,1);
-  let sd=(first.getDay()+6)%7;
-  const days=new Date(y,m+1,0).getDate();
-  let cells=[];
-  for(let i=0;i<sd;i++) cells.push(null);
-  for(let d=1;d<=days;d++) cells.push(d);
-  while(cells.length%7) cells.push(null);
+  const y=pcur.getFullYear();
+  document.getElementById('pym').textContent=`${y}年`;
+  const mc=Array(12).fill(0);
+  Object.keys(DATA.dates).forEach(k=>{const [ky,km]=k.split('-').map(Number);if(ky===y)mc[km-1]++;});
   let html="";
-  for(let w=0;w<cells.length;w+=7){
-    html+="<tr>";
-    for(let i=w;i<w+7;i++){
-      const d=cells[i];
-      if(d===null){html+='<td class="empty"></td>';continue;}
-      const key=fmt(y,m,d);
-      const has=DATA.dates&&DATA.dates[key];
-      const sel=(key===todayStr)?"sel":"";
-      const cls=has?"has":"none";
-      html+=`<td class="${cls} ${sel}" onclick="pickDate('${key}')">${d}</td>`;
-    }
-    html+="</tr>";
+  for(let m=0;m<12;m++){
+    const c=mc[m];
+    const sub=c>0?`<span class="mcnt">${c}天</span>`:'<span class="mcnt zero">—</span>';
+    html+=`<div class="mcell" onclick="pickMonth(${y},${m})"><span class="mlbl">${m+1}月</span>${sub}</div>`;
   }
   document.getElementById('pgrid').innerHTML=html;
 }
-function pickDate(key){
-  const [y,m]=key.split('-').map(Number);
-  cur=new Date(y,m-1,1);
+function pickMonth(y,m){
+  cur=new Date(y,m,1);
   closePicker();
   render();
-  const v=DATA.dates[key];
-  if(v){
-    const files=v.files||(v.file?[v.file]:[]);
-    const cnt=files.length;
-    const list=cnt>1?files.map(f=>`• ${f}`).join('<br>'):(files[0]||'—');
-    document.getElementById("info").innerHTML=`<b>${key}</b> · 已上传 · ${cnt} 个文件<br>${list}`;
-  }
 }
 
 load();
